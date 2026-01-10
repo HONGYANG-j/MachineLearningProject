@@ -12,19 +12,26 @@ from sklearn.ensemble import RandomForestRegressor, StackingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
-from xgboost import XGBRegressor
+# -----------------------------
+# XGBoost Availability Check
+# -----------------------------
+try:
+    from xgboost import XGBRegressor
+    XGB_AVAILABLE = True
+except ImportError:
+    XGB_AVAILABLE = False
 
-# --------------------------------
+# -----------------------------
 # Page Configuration
-# --------------------------------
+# -----------------------------
 st.set_page_config(
     page_title="Child Health Vulnerability Analysis System",
     layout="wide"
 )
 
-# --------------------------------
+# -----------------------------
 # Data Loading & Cleaning
-# --------------------------------
+# -----------------------------
 @st.cache_data
 def load_and_clean_data():
     df = pd.read_csv("mergednew.csv")
@@ -41,18 +48,18 @@ def load_and_clean_data():
 
 df_clean = load_and_clean_data()
 
-# --------------------------------
+# -----------------------------
 # Sidebar Navigation
-# --------------------------------
+# -----------------------------
 st.sidebar.title("System Navigation")
 menu = st.sidebar.radio(
     "Select Module",
     ["About this System", "Dataset Overview", "Train & Predict Model"]
 )
 
-# --------------------------------
+# -----------------------------
 # About
-# --------------------------------
+# -----------------------------
 if menu == "About this System":
     st.header("Predicting Child Health Vulnerabilities in Malaysia")
     st.write("""
@@ -60,9 +67,9 @@ if menu == "About this System":
     mortality rates using socio-economic and infrastructure indicators.
     """)
 
-# --------------------------------
+# -----------------------------
 # Dataset Overview
-# --------------------------------
+# -----------------------------
 elif menu == "Dataset Overview":
     st.header("Dataset Overview")
     st.dataframe(df_clean.head())
@@ -76,9 +83,9 @@ elif menu == "Dataset Overview":
     )
     st.pyplot(fig)
 
-# --------------------------------
-# Model Training & Dashboard
-# --------------------------------
+# -----------------------------
+# Model Training & Prediction
+# -----------------------------
 elif menu == "Train & Predict Model":
     st.header("Tuned Stacking Regressor: Training & Prediction")
 
@@ -87,13 +94,15 @@ elif menu == "Train & Predict Model":
     elif df_clean is None:
         st.error("Dataset not loaded.")
     else:
-        features = ['state', 'type', 'sex', 'piped_water', 'sanitation',
-                    'electricity', 'income_mean', 'gini',
-                    'poverty_absolute', 'cpi']
+        features = [
+            'state', 'type', 'sex', 'piped_water', 'sanitation',
+            'electricity', 'income_mean', 'gini',
+            'poverty_absolute', 'cpi'
+        ]
         target = 'rate'
 
         # -------------------------
-        # MODEL TRAINING SECTION
+        # Model Training
         # -------------------------
         st.subheader("1️⃣ Model Training")
 
@@ -102,7 +111,6 @@ elif menu == "Train & Predict Model":
                 X = df_clean[features].copy()
                 y = df_clean[target]
 
-                # Encode categorical features
                 encoders = {}
                 for col in ['state', 'type', 'sex']:
                     le = LabelEncoder()
@@ -117,8 +125,10 @@ elif menu == "Train & Predict Model":
                 )
 
                 base_learners = [
-                    ('rf', RandomForestRegressor(n_estimators=200, max_depth=15, random_state=42)),
-                    ('xgb', XGBRegressor(n_estimators=200, learning_rate=0.05, random_state=42))
+                    ('rf', RandomForestRegressor(
+                        n_estimators=200, max_depth=15, random_state=42)),
+                    ('xgb', XGBRegressor(
+                        n_estimators=200, learning_rate=0.05, random_state=42))
                 ]
 
                 model = StackingRegressor(
@@ -128,7 +138,6 @@ elif menu == "Train & Predict Model":
 
                 model.fit(X_train, y_train)
 
-                # Store everything in session
                 st.session_state.model = model
                 st.session_state.scaler = scaler
                 st.session_state.encoders = encoders
@@ -144,7 +153,7 @@ elif menu == "Train & Predict Model":
                 c3.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.4f}")
 
         # -------------------------
-        # PREDICTION SECTION
+        # Prediction Dashboard
         # -------------------------
         if "model" in st.session_state:
             st.divider()
@@ -170,16 +179,20 @@ elif menu == "Train & Predict Model":
                         )
                         input_data.append(val)
 
-                    if st.button("Generate Prediction"):
-                        X_final = scaler.transform([input_data])
-                        res = model.predict(X_final)[0]
-                    
-                        st.success(f"Predicted Mortality Rate: {res:.2f}")
-                    
-                        # Graph MUST be inside here
-                        fig, ax = plt.subplots(figsize=(10, 3))
-                        sns.kdeplot(df_clean['rate'], fill=True, color="skyblue")
-                        ax.axvline(res, color="red", linestyle="--", label="Prediction")
-                        ax.legend()
-                        st.pyplot(fig)
-                    
+            if st.button("Generate Prediction"):
+                X_input = pd.DataFrame(
+                    [input_data],
+                    columns=st.session_state.features
+                )
+
+                X_scaled_final = st.session_state.scaler.transform(X_input)
+                res = st.session_state.model.predict(X_scaled_final)[0]
+
+                st.success(f"Predicted Mortality Rate: {res:.2f}")
+
+                fig, ax = plt.subplots(figsize=(10, 3))
+                sns.kdeplot(df_clean['rate'], fill=True, color="skyblue", ax=ax)
+                ax.axvline(res, color="red", linestyle="--", label="Prediction")
+                ax.set_xlabel("Mortality Rate")
+                ax.legend()
+                st.pyplot(fig)
