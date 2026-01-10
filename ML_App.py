@@ -1,9 +1,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import joblib
+import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# ML Libraries
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestRegressor, StackingRegressor
@@ -32,14 +35,16 @@ st.set_page_config(
 # -----------------------------
 @st.cache_data
 def load_and_clean_data():
+    if not os.path.exists("mergednew.csv"):
+        return None
+
     df = pd.read_csv("mergednew.csv")
 
     # Convert date → year
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        df["year"] = df["date"].dt.year
-    else:
+    if "date" not in df.columns:
         raise ValueError("Dataset must contain a 'date' column (YYYY-MM-DD)")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["year"] = df["date"].dt.year
 
     # Remove rows without target
     df = df.dropna(subset=["rate"])
@@ -62,27 +67,36 @@ df_clean = load_and_clean_data()
 st.sidebar.title("System Navigation")
 menu = st.sidebar.radio(
     "Select Module",
-    ["About this System", "Dataset Overview", "Train & Predict Model"]
+    [
+        "About this System",
+        "Dataset Overview",
+        "Model Training",
+        "Prediction Dashboard"
+    ]
 )
 
 # -----------------------------
-# About
+# 1. About this System
 # -----------------------------
 if menu == "About this System":
     st.header("Predicting Child Health Vulnerabilities in Malaysia")
+
     st.write("""
-    This system applies a **stacking regression model** to predict early childhood
-    mortality rates using socio-economic, infrastructure, and temporal indicators.
-    
-    The model explicitly incorporates **year-based trends** derived from real
-    date records.
+    This system predicts early childhood mortality rates using a **Tuned Stacking
+    Regressor** that integrates socio-economic, infrastructure, and **temporal
+    (year-based)** indicators derived from real-world date records.
     """)
 
 # -----------------------------
-# Dataset Overview
+# 2. Dataset Overview
 # -----------------------------
 elif menu == "Dataset Overview":
     st.header("Dataset Overview")
+
+    if df_clean is None:
+        st.error("Dataset not found.")
+        st.stop()
+
     st.dataframe(df_clean.head())
 
     st.subheader("Correlation Heatmap")
@@ -95,18 +109,19 @@ elif menu == "Dataset Overview":
     st.pyplot(fig)
 
 # -----------------------------
-# Model Training & Prediction
+# 3. Model Training
 # -----------------------------
-elif menu == "Train & Predict Model":
-    st.header("Tuned Stacking Regressor: Training & Prediction")
+elif menu == "Model Training":
+    st.header("Model Training – Tuned Stacking Regressor")
 
     if not XGB_AVAILABLE:
-        st.error("XGBoost library not found. Please install xgboost.")
+        st.error("XGBoost is required. Please install xgboost.")
         st.stop()
 
-    # -------------------------
-    # Feature Selection
-    # -------------------------
+    if df_clean is None:
+        st.error("Dataset not loaded.")
+        st.stop()
+
     features = [
         "year",
         "state", "type", "sex",
@@ -116,33 +131,25 @@ elif menu == "Train & Predict Model":
     ]
     target = "rate"
 
-    # -------------------------
-    # Model Training
-    # -------------------------
-    st.subheader("1️⃣ Model Training")
-
     if st.button("Train Tuned Stacking Regressor"):
         with st.spinner("Training ensemble model..."):
             X = df_clean[features].copy()
             y = df_clean[target]
 
-            # Encode categorical variables
+            # Encode categorical features
             encoders = {}
             for col in ["state", "type", "sex"]:
                 le = LabelEncoder()
                 X[col] = le.fit_transform(X[col].astype(str))
                 encoders[col] = le
 
-            # Scaling
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
 
-            # Train-test split
             X_train, X_test, y_train, y_test = train_test_split(
                 X_scaled, y, test_size=0.2, random_state=42
             )
 
-            # Base learners
             base_learners = [
                 ("rf", RandomForestRegressor(
                     n_estimators=200,
@@ -156,7 +163,6 @@ elif menu == "Train & Predict Model":
                 ))
             ]
 
-            # Stacking model
             model = StackingRegressor(
                 estimators=base_learners,
                 final_estimator=LinearRegression()
@@ -164,13 +170,12 @@ elif menu == "Train & Predict Model":
 
             model.fit(X_train, y_train)
 
-            # Store in session
-            st.session_state.model = model
-            st.session_state.scaler = scaler
-            st.session_state.encoders = encoders
-            st.session_state.features = features
+            # Save artifacts
+            joblib.dump(model, "model.pkl")
+            joblib.dump(scaler, "scaler.pkl")
+            joblib.dump(encoders, "encoders.pkl")
+            joblib.dump(features, "feature_names.pkl")
 
-            # Evaluation
             y_pred = model.predict(X_test)
 
             st.success("Model trained successfully!")
@@ -180,78 +185,65 @@ elif menu == "Train & Predict Model":
             c2.metric("RMSE", f"{np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
             c3.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.4f}")
 
-    # -------------------------
-    # Prediction Dashboard
-    # -------------------------
-    if "model" in st.session_state:
-        st.divider()
-        st.subheader("2️⃣ Prediction Dashboard")
+# -----------------------------
+# 4. Prediction Dashboard
+# -----------------------------
+elif menu == "Prediction Dashboard":
+    st.header("Prediction Dashboard")
 
-        input_data = []
-        cols = st.columns(2)
+    if not os.path.exists("model.pkl"):
+        st.warning("Train the model first.")
+        st.stop()
 
-        for i, f in enumerate(st.session_state.features):
-            with cols[i % 2]:
-                if f == "year":
-                    val = st.number_input(
-                        "Year (Prediction Start)",
-                        min_value=2023,
-                        max_value=2050,
-                        value=2023,
-                        step=1
-                    )
-                    input_data.append(val)
+    model = joblib.load("model.pkl")
+    scaler = joblib.load("scaler.pkl")
+    encoders = joblib.load("encoders.pkl")
+    features = joblib.load("feature_names.pkl")
 
-                elif f in st.session_state.encoders:
-                    val = st.selectbox(
-                        f.replace("_", " ").capitalize(),
-                        st.session_state.encoders[f].classes_
-                    )
-                    input_data.append(
-                        st.session_state.encoders[f].transform([val])[0]
-                    )
+    input_data = []
+    cols = st.columns(2)
 
-                else:
-                    val = st.number_input(
-                        f.replace("_", " ").capitalize(),
-                        value=float(df_clean[f].median())
-                    )
-                    input_data.append(val)
+    for i, f in enumerate(features):
+        with cols[i % 2]:
+            if f == "year":
+                val = st.number_input(
+                    "Year (Prediction Start)",
+                    min_value=2023,
+                    max_value=2050,
+                    value=2023,
+                    step=1
+                )
+                input_data.append(val)
 
-        if st.button("Generate Prediction"):
-            X_input = pd.DataFrame(
-                [input_data],
-                columns=st.session_state.features
-            )
+            elif f in encoders:
+                val = st.selectbox(
+                    f.replace("_", " ").capitalize(),
+                    encoders[f].classes_
+                )
+                input_data.append(encoders[f].transform([val])[0])
 
-            X_scaled_final = st.session_state.scaler.transform(X_input)
-            res = st.session_state.model.predict(X_scaled_final)[0]
+            else:
+                val = st.number_input(
+                    f.replace("_", " ").capitalize(),
+                    value=float(df_clean[f].median())
+                )
+                input_data.append(val)
 
-            st.success(f"Predicted Child Mortality Rate: {res:.2f}")
+    if st.button("Generate Prediction"):
+        X_input = scaler.transform([input_data])
+        res = model.predict(X_input)[0]
 
-            # -------------------------
-            # Yearly Trend Visualization
-            # -------------------------
-            yearly_avg = df_clean.groupby("year")["rate"].mean().reset_index()
+        st.success(f"Predicted Child Mortality Rate: {res:.2f}")
 
-            fig, ax = plt.subplots(figsize=(10, 4))
-            ax.plot(
-                yearly_avg["year"],
-                yearly_avg["rate"],
-                marker="o",
-                label="Historical Average"
-            )
-            ax.axhline(
-                res,
-                color="red",
-                linestyle="--",
-                label="Predicted Rate"
-            )
+        yearly_avg = df_clean.groupby("year")["rate"].mean().reset_index()
 
-            ax.set_title("Child Mortality Trend vs Prediction")
-            ax.set_xlabel("Year")
-            ax.set_ylabel("Mortality Rate")
-            ax.legend()
-            ax.grid(True)
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.plot(yearly_avg["year"], yearly_avg["rate"], marker="o", label="Historical Average")
+        ax.axhline(res, color="red", linestyle="--", label="Predicted Rate")
+        ax.set_title("Child Mortality Trend vs Prediction")
+        ax.set_xlabel("Year")
+        ax.set_ylabel("Mortality Rate")
+        ax.legend()
+        ax.grid(True)
 
-            st.pyplot(fig)
+        st.pyplot(fig)
