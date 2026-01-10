@@ -174,8 +174,11 @@ elif menu == "Prediction Dashboard":
 
             st.success(f"Predicted Mortality Rate: {prediction:.2f}")
 
+            # Result Distribution Visual
             fig, ax = plt.subplots(figsize=(10, 3))
-            sns.kdeplot(df_clean['rate'], fill=True, label="Historical")
-            plt.axvline(prediction, color='red', linestyle='--', label="Prediction")
+            sns.kdeplot(df_clean['rate'], fill=True, color="skyblue", label="National Historical Distribution")
+            plt.axvline(res, color="red", linestyle="--", label="User Prediction")
+            plt.xlabel("Mortality Rate")
             plt.legend()
             st.pyplot(fig)
+
