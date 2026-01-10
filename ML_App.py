@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -190,9 +188,32 @@ elif menu == "Train & Predict Model":
 
                 st.success(f"Predicted Mortality Rate: {res:.2f}")
 
-                fig, ax = plt.subplots(figsize=(10, 3))
-                sns.kdeplot(df_clean['rate'], fill=True, color="skyblue", ax=ax)
-                ax.axvline(res, color="red", linestyle="--", label="Prediction")
-                ax.set_xlabel("Mortality Rate")
-                ax.legend()
-                st.pyplot(fig)
+                # -------------------------
+                # NEW GRAPH: Yearly Trend + Prediction
+                # -------------------------
+                if 'year' in df_clean.columns:
+                    yearly_avg = df_clean.groupby('year')['rate'].mean().reset_index()
+
+                    fig, ax = plt.subplots(figsize=(10, 4))
+                    ax.plot(
+                        yearly_avg['year'],
+                        yearly_avg['rate'],
+                        marker='o',
+                        label='National Average'
+                    )
+                    ax.axhline(
+                        res,
+                        color='red',
+                        linestyle='--',
+                        label='Predicted Rate'
+                    )
+
+                    ax.set_title("Child Mortality Rate Trend vs Predicted Value")
+                    ax.set_xlabel("Year")
+                    ax.set_ylabel("Mortality Rate")
+                    ax.legend()
+                    ax.grid(True)
+
+                    st.pyplot(fig)
+                else:
+                    st.info("Year column not available for trend visualization.")
