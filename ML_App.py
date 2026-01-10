@@ -170,20 +170,16 @@ elif menu == "Train & Predict Model":
                         )
                         input_data.append(val)
 
-            if st.button("Generate Prediction"):
-                X_final = st.session_state.scaler.transform([input_data])
-                res = st.session_state.model.predict(X_final)[0]
-
-                st.success(f"Predicted Mortality Rate: {res:.2f}")
-
-                # Optional trend visualization (if year exists)
-                if 'year' in df_clean.columns:
-                    yearly_avg = df_clean.groupby('year')['rate'].mean().reset_index()
-                    fig, ax = plt.subplots(figsize=(10, 4))
-                    ax.plot(yearly_avg['year'], yearly_avg['rate'], marker='o')
-                    ax.axhline(res, color='red', linestyle='--')
-                    ax.set_title("Trend vs Prediction")
-                    ax.set_xlabel("Year")
-                    ax.set_ylabel("Mortality Rate")
-                    ax.grid(True)
-                    st.pyplot(fig)
+                    if st.button("Generate Prediction"):
+                        X_final = scaler.transform([input_data])
+                        res = model.predict(X_final)[0]
+                    
+                        st.success(f"Predicted Mortality Rate: {res:.2f}")
+                    
+                        # Graph MUST be inside here
+                        fig, ax = plt.subplots(figsize=(10, 3))
+                        sns.kdeplot(df_clean['rate'], fill=True, color="skyblue")
+                        ax.axvline(res, color="red", linestyle="--", label="Prediction")
+                        ax.legend()
+                        st.pyplot(fig)
+                    
