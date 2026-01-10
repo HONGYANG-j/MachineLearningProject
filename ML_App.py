@@ -47,7 +47,7 @@ df_clean = load_and_clean_data()
 st.sidebar.title("System Navigation")
 menu = st.sidebar.radio(
     "Select Module",
-    ["About this System", "Dataset Overview", "Model Training", "Prediction Dashboard"]
+    ["About this System", "Dataset Overview", "Train & Predict Model"]
 )
 
 # --------------------------------
@@ -77,108 +77,113 @@ elif menu == "Dataset Overview":
     st.pyplot(fig)
 
 # --------------------------------
-# Model Training (ONLY Stacking Regressor)
+# Model Training & Dashboard
 # --------------------------------
-elif menu == "Model Training":
-    st.header("Tuned Stacking Regressor Training")
+elif menu == "Train & Predict Model":
+    st.header("Tuned Stacking Regressor: Training & Prediction")
 
-    features = [
-        'state', 'type', 'sex',
-        'piped_water', 'sanitation', 'electricity',
-        'income_mean', 'gini', 'poverty_absolute', 'cpi'
-    ]
-    target = 'rate'
-
-    if st.button("Train Tuned Stacking Model"):
-        X = df_clean[features].copy()
-        y = df_clean[target]
-
-        encoders = {}
-        for col in ['state', 'type', 'sex']:
-            le = LabelEncoder()
-            X[col] = le.fit_transform(X[col].astype(str))
-            encoders[col] = le
-
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_scaled, y, test_size=0.2, random_state=42
-        )
-
-        base_learners = [
-            ('rf', RandomForestRegressor(
-                n_estimators=200,
-                max_depth=15,
-                random_state=42
-            )),
-            ('xgb', XGBRegressor(
-                n_estimators=200,
-                learning_rate=0.05,
-                random_state=42
-            ))
-        ]
-
-        stacking_model = StackingRegressor(
-            estimators=base_learners,
-            final_estimator=LinearRegression()
-        )
-
-        stacking_model.fit(X_train, y_train)
-
-        joblib.dump(stacking_model, "model.pkl")
-        joblib.dump(scaler, "scaler.pkl")
-        joblib.dump(encoders, "encoders.pkl")
-        joblib.dump(features, "feature_names.pkl")
-
-        y_pred = stacking_model.predict(X_test)
-
-        st.success("Tuned Stacking Regressor trained successfully")
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("R²", f"{r2_score(y_test, y_pred):.4f}")
-        col2.metric("RMSE", f"{np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
-        col3.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.4f}")
-
-# --------------------------------
-# Prediction Dashboard
-# --------------------------------
-elif menu == "Prediction Dashboard":
-    st.header("Prediction Dashboard")
-
-    if not os.path.exists("model.pkl"):
-        st.warning("Please train the model first.")
+    if not XGB_AVAILABLE:
+        st.error("XGBoost library not found.")
+    elif df_clean is None:
+        st.error("Dataset not loaded.")
     else:
-        model = joblib.load("model.pkl")
-        scaler = joblib.load("scaler.pkl")
-        encoders = joblib.load("encoders.pkl")
-        features = joblib.load("feature_names.pkl")
+        features = ['state', 'type', 'sex', 'piped_water', 'sanitation',
+                    'electricity', 'income_mean', 'gini',
+                    'poverty_absolute', 'cpi']
+        target = 'rate'
 
-        input_data = []
-        cols = st.columns(2)
+        # -------------------------
+        # MODEL TRAINING SECTION
+        # -------------------------
+        st.subheader("1️⃣ Model Training")
 
-        for i, f in enumerate(features):
-            with cols[i % 2]:
-                if f in encoders:
-                    val = st.selectbox(f, encoders[f].classes_)
-                    input_data.append(encoders[f].transform([val])[0])
-                else:
-                    val = st.number_input(
-                        f, value=float(df_clean[f].median())
-                    )
-                    input_data.append(val)
+        if st.button("Train Tuned Stacking Regressor"):
+            with st.spinner("Training ensemble model..."):
+                X = df_clean[features].copy()
+                y = df_clean[target]
 
-        if st.button("Predict"):
-            X_final = scaler.transform([input_data])
-            prediction = model.predict(X_final)[0]
+                # Encode categorical features
+                encoders = {}
+                for col in ['state', 'type', 'sex']:
+                    le = LabelEncoder()
+                    X[col] = le.fit_transform(X[col].astype(str))
+                    encoders[col] = le
 
-            st.success(f"Predicted Mortality Rate: {prediction:.2f}")
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(X)
 
-            # Result Distribution Visual
-            fig, ax = plt.subplots(figsize=(10, 3))
-            sns.kdeplot(df_clean['rate'], fill=True, color="skyblue", label="National Historical Distribution")
-            plt.axvline(res, color="red", linestyle="--", label="User Prediction")
-            plt.xlabel("Mortality Rate")
-            plt.legend()
-            st.pyplot(fig)
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X_scaled, y, test_size=0.2, random_state=42
+                )
 
+                base_learners = [
+                    ('rf', RandomForestRegressor(n_estimators=200, max_depth=15, random_state=42)),
+                    ('xgb', XGBRegressor(n_estimators=200, learning_rate=0.05, random_state=42))
+                ]
+
+                model = StackingRegressor(
+                    estimators=base_learners,
+                    final_estimator=LinearRegression()
+                )
+
+                model.fit(X_train, y_train)
+
+                # Store everything in session
+                st.session_state.model = model
+                st.session_state.scaler = scaler
+                st.session_state.encoders = encoders
+                st.session_state.features = features
+
+                y_pred = model.predict(X_test)
+
+                st.success("Model trained successfully!")
+
+                c1, c2, c3 = st.columns(3)
+                c1.metric("R²", f"{r2_score(y_test, y_pred):.4f}")
+                c2.metric("RMSE", f"{np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
+                c3.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.4f}")
+
+        # -------------------------
+        # PREDICTION SECTION
+        # -------------------------
+        if "model" in st.session_state:
+            st.divider()
+            st.subheader("2️⃣ Prediction Dashboard")
+
+            input_data = []
+            cols = st.columns(2)
+
+            for i, f in enumerate(st.session_state.features):
+                with cols[i % 2]:
+                    if f in st.session_state.encoders:
+                        val = st.selectbox(
+                            f.replace('_', ' ').capitalize(),
+                            st.session_state.encoders[f].classes_
+                        )
+                        input_data.append(
+                            st.session_state.encoders[f].transform([val])[0]
+                        )
+                    else:
+                        val = st.number_input(
+                            f.replace('_', ' ').capitalize(),
+                            value=float(df_clean[f].median())
+                        )
+                        input_data.append(val)
+
+            if st.button("Generate Prediction"):
+                X_final = st.session_state.scaler.transform([input_data])
+                res = st.session_state.model.predict(X_final)[0]
+
+                st.success(f"Predicted Mortality Rate: {res:.2f}")
+
+                # Optional trend visualization (if year exists)
+                if 'year' in df_clean.columns:
+                    yearly_avg = df_clean.groupby('year')['rate'].mean().reset_index()
+                    fig, ax = plt.subplots(figsize=(10, 4))
+                    ax.plot(yearly_avg['year'], yearly_avg['rate'], marker='o')
+                    ax.axhline(res, color='red', linestyle='--')
+                    ax.set_title("Trend vs Prediction")
+                    ax.set_xlabel("Year")
+                    ax.set_ylabel("Mortality Rate")
+                    ax.grid(True)
+                    st.pyplot(fig)
