@@ -35,20 +35,14 @@ def load_and_clean_data():
     df = pd.read_csv("mergednew.csv")
 
     # Convert date → year
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        df["year"] = df["date"].dt.year
-    else:
-        raise ValueError("Dataset must contain a 'date' column (YYYY-MM-DD)")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["year"] = df["date"].dt.year
 
-    # Remove rows without target
     df = df.dropna(subset=["rate"])
 
-    # Fill numeric columns
     num_cols = df.select_dtypes(include=[np.number]).columns
     df[num_cols] = df[num_cols].fillna(df[num_cols].median())
 
-    # Fill categorical columns
     cat_cols = df.select_dtypes(include=["object"]).columns
     df[cat_cols] = df[cat_cols].fillna("Unknown")
 
@@ -73,9 +67,6 @@ if menu == "About this System":
     st.write("""
     This system applies a **stacking regression model** to predict early childhood
     mortality rates using socio-economic, infrastructure, and temporal indicators.
-    
-    The model explicitly incorporates **year-based trends** derived from real
-    date records.
     """)
 
 # -----------------------------
@@ -90,6 +81,8 @@ elif menu == "Dataset Overview":
     sns.heatmap(
         df_clean.select_dtypes(include=[np.number]).corr(),
         cmap="coolwarm",
+        annot=True,
+        fmt=".2f",
         ax=ax
     )
     st.pyplot(fig)
@@ -101,12 +94,9 @@ elif menu == "Train & Predict Model":
     st.header("Tuned Stacking Regressor: Training & Prediction")
 
     if not XGB_AVAILABLE:
-        st.error("XGBoost library not found. Please install xgboost.")
+        st.error("XGBoost library not found.")
         st.stop()
 
-    # -------------------------
-    # Feature Selection
-    # -------------------------
     features = [
         "year",
         "state", "type", "sex",
@@ -126,37 +116,28 @@ elif menu == "Train & Predict Model":
             X = df_clean[features].copy()
             y = df_clean[target]
 
-            # Encode categorical variables
             encoders = {}
             for col in ["state", "type", "sex"]:
                 le = LabelEncoder()
                 X[col] = le.fit_transform(X[col].astype(str))
                 encoders[col] = le
 
-            # Scaling
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
 
-            # Train-test split
             X_train, X_test, y_train, y_test = train_test_split(
                 X_scaled, y, test_size=0.2, random_state=42
             )
 
-            # Base learners
             base_learners = [
                 ("rf", RandomForestRegressor(
-                    n_estimators=100,
-                    max_depth=10,
-                    random_state=42
+                    n_estimators=100, max_depth=10, random_state=42
                 )),
                 ("xgb", XGBRegressor(
-                    n_estimators=100,
-                    learning_rate=0.1,
-                    random_state=42
+                    n_estimators=100, learning_rate=0.1, random_state=42
                 ))
             ]
 
-            # Stacking model
             model = StackingRegressor(
                 estimators=base_learners,
                 final_estimator=LinearRegression()
@@ -164,13 +145,11 @@ elif menu == "Train & Predict Model":
 
             model.fit(X_train, y_train)
 
-            # Store in session
             st.session_state.model = model
             st.session_state.scaler = scaler
             st.session_state.encoders = encoders
             st.session_state.features = features
 
-            # Evaluation
             y_pred = model.predict(X_test)
 
             st.success("Model trained successfully!")
@@ -187,20 +166,21 @@ elif menu == "Train & Predict Model":
         st.divider()
         st.subheader("2️⃣ Prediction Dashboard")
 
+        latest_year = int(df_clean["year"].max())
+        prediction_year = latest_year + 1  # ONLY 2023
+
         input_data = []
         cols = st.columns(2)
 
         for i, f in enumerate(st.session_state.features):
             with cols[i % 2]:
                 if f == "year":
-                    val = st.number_input(
-                        "Year (Prediction Start)",
-                        min_value=2023,
-                        max_value=2050,
-                        value=2023,
-                        step=1
+                    st.number_input(
+                        "Prediction Year",
+                        value=prediction_year,
+                        disabled=True
                     )
-                    input_data.append(val)
+                    input_data.append(prediction_year)
 
                 elif f in st.session_state.encoders:
                     val = st.selectbox(
@@ -219,15 +199,32 @@ elif menu == "Train & Predict Model":
                     input_data.append(val)
 
         if st.button("Generate Prediction"):
-            X_input = pd.DataFrame(
-                [input_data],
-                columns=st.session_state.features
-            )
-
-            X_scaled_final = st.session_state.scaler.transform(X_input)
+            X_scaled_final = st.session_state.scaler.transform([input_data])
             res = st.session_state.model.predict(X_scaled_final)[0]
 
-            st.success(f"Predicted Child Mortality Rate: {res:.2f}")
+            st.success(f"Predicted Child Mortality Rate (2023): {res:.2f}")
+
+            # -------------------------
+            # Recommendation Section
+            # -------------------------
+            avg = df_clean["rate"].mean()
+            std = df_clean["rate"].std()
+
+            st.subheader("📌 Interpretation & Recommendation")
+            st.write(
+                f"The model predicts a child mortality rate of **{res:.2f} deaths per 1,000 live births** "
+                f"for the given input parameters."
+            )
+
+            if res > avg + 0.5 * std:
+                st.error("**Vulnerability Classification:** High")
+                st.write("**Recommended Strategic Action:** Immediate public health intervention and infrastructure investment.")
+            elif res < avg - 0.5 * std:
+                st.info("**Vulnerability Classification:** Low")
+                st.write("**Recommended Strategic Action:** Maintain current healthcare and monitoring programs.")
+            else:
+                st.warning("**Vulnerability Classification:** Moderate")
+                st.write("**Recommended Strategic Action:** Targeted policy support and continued monitoring.")
 
             # -------------------------
             # Yearly Trend Visualization
@@ -235,20 +232,27 @@ elif menu == "Train & Predict Model":
             yearly_avg = df_clean.groupby("year")["rate"].mean().reset_index()
 
             fig, ax = plt.subplots(figsize=(10, 4))
+
             ax.plot(
                 yearly_avg["year"],
                 yearly_avg["rate"],
                 marker="o",
                 label="Historical Average"
             )
-            ax.axhline(
-                res,
+
+            ax.plot(
+                [latest_year, prediction_year],
+                [
+                    yearly_avg[yearly_avg["year"] == latest_year]["rate"].values[0],
+                    res
+                ],
                 color="red",
-                linestyle="--",
-                label="Predicted Rate"
+                linestyle=":",
+                marker="o",
+                label="2023 Prediction"
             )
 
-            ax.set_title("Child Mortality Trend vs Prediction")
+            ax.set_title("Child Mortality Trend (2022 → 2023 Forecast)")
             ax.set_xlabel("Year")
             ax.set_ylabel("Mortality Rate")
             ax.legend()
