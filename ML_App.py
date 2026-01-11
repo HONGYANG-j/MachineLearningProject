@@ -27,6 +27,16 @@ st.set_page_config(
     layout="wide"
 )
 
+st.subheader("System Overview")
+st.write("""
+This advanced Machine Learning platform is engineered to predict Early Childhood Mortality Rates 
+across Malaysia. By evaluating critical socio-economic indicators which include household income 
+distribution, poverty absolute levels, and infrastructure accessibility (piped water and sanitation). The 
+system provides high-precision vulnerability assessments to guide public health interventions.
+""")
+
+
+
 # -----------------------------
 # Data Loading & Cleaning
 # -----------------------------
@@ -167,7 +177,7 @@ elif menu == "Train & Predict Model":
         st.subheader("2️⃣ Prediction Dashboard")
 
         latest_year = int(df_clean["year"].max())
-        prediction_year = latest_year + 1  # ONLY 2023
+        scenario_year = latest_year + 1  # ONLY 2023
 
         input_data = []
         cols = st.columns(2)
@@ -226,6 +236,10 @@ elif menu == "Train & Predict Model":
                 st.warning("**Vulnerability Classification:** Moderate")
                 st.write("**Recommended Strategic Action:** Targeted policy support and continued monitoring.")
 
+            st.caption(
+                "Note: The historical trend is descriptive. The predicted value represents a scenario-based regression output, not a time-series forecast"
+            )
+            
             # -------------------------
             # Yearly Trend Visualization
             # -------------------------
@@ -249,10 +263,10 @@ elif menu == "Train & Predict Model":
                 color="red",
                 linestyle=":",
                 marker="o",
-                label="2023 Prediction"
+                label="Scenario-Based Prediction"
             )
 
-            ax.set_title("Child Mortality Trend (2022 → 2023 Forecast)")
+            ax.set_title("Scenario Comparison against Historical Child Mortality Trend")
             ax.set_xlabel("Year")
             ax.set_ylabel("Mortality Rate")
             ax.legend()
