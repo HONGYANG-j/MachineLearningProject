@@ -73,18 +73,6 @@ if menu == "About this System":
     The system provides high-precision vulnerability assessments to guide public health interventions.
     """)
 
-    st.subheader("Technical Architecture: Tuned Stacking Regressor")
-    st.write("""
-    The 'Best Model' implemented here is a **Tuned Stacking Regressor**. This ensemble architecture 
-    combines two powerful base learners:
-    
-    1. **Random Forest Regressor**
-    2. **XGBoost Regressor**
-    
-    A **Linear Regression meta-learner** integrates predictions from both models to generate 
-    a stable and robust final prediction.
-    """)
-
 # -----------------------------
 # Dataset Overview
 # -----------------------------
