@@ -22,20 +22,17 @@ except ImportError:
 # -----------------------------
 # Page Configuration
 # -----------------------------
-st.set_page_config(
-    page_title="Child Health Vulnerability Analysis System",
-    layout="wide"
-)
-
-st.subheader("System Overview")
-st.write("""
-This advanced Machine Learning platform is engineered to predict Early Childhood Mortality Rates 
-across Malaysia. By evaluating critical socio-economic indicators which include household income 
-distribution, poverty absolute levels, and infrastructure accessibility (piped water and sanitation). The 
-system provides high-precision vulnerability assessments to guide public health interventions.
-""")
-
-
+if menu == "About this System":
+    st.header("Predicting Child Health Vulnerabilities in Malaysia")
+    
+    st.subheader("System Overview")
+    st.write("""
+    This advanced Machine Learning platform is engineered to predict Early Childhood Mortality Rates 
+    across Malaysia. By evaluating critical socio-economic indicators which include household income 
+    distribution, poverty absolute levels, and infrastructure accessibility (piped water and sanitation). The 
+    system provides high-precision vulnerability assessments to guide public health interventions.
+    """)
+    
 
 # -----------------------------
 # Data Loading & Cleaning
