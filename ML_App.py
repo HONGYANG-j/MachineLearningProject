@@ -230,6 +230,13 @@ elif menu == "Train & Predict Model":
                 st.warning("**Vulnerability Classification:** Moderate")
                 st.write("**Recommended Strategic Action:** Targeted policy support and continued monitoring.")
 
+            # 📌 Caption note
+            st.caption(
+                "Note: The historical trend is descriptive. "
+                "The predicted value represents a scenario-based regression output, "
+                "not a time-series forecast."
+            )
+            
             # -------------------------
             # Yearly Trend Visualization
             # -------------------------
