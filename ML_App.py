@@ -20,31 +20,12 @@ except ImportError:
     XGB_AVAILABLE = False
 
 # -----------------------------
-# About
+# Page Configuration
 # -----------------------------
-if menu == "About this System":
-    st.header("Predicting Child Health Vulnerabilities in Malaysia")
-
-    st.subheader("System Overview")
-    st.write("""
-    This advanced Machine Learning platform is engineered to predict Early Childhood Mortality Rates 
-    across Malaysia. By evaluating critical socio-economic indicators which include household income 
-    distribution, poverty absolute levels, and infrastructure accessibility (piped water and sanitation). 
-    The system provides high-precision vulnerability assessments to guide public health interventions.
-    """)
-
-    st.subheader("Technical Architecture: Tuned Stacking Regressor")
-    st.write("""
-    The 'Best Model' implemented here is a **Tuned Stacking Regressor**. This ensemble architecture 
-    combines two powerful base learners:
-
-    1. **Random Forest Regressor:** Handles high-dimensional data and captures complex feature interactions.
-    2. **XGBoost Regressor:** Utilizes gradient boosting to minimize residual errors sequentially.
-
-    A **Linear Regression meta-learner** then integrates the predictions from these two models to produce 
-    a final, stabilized output. This multi-layered approach ensures the system remains robust against 
-    data noise and provides superior accuracy compared to individual algorithms.
-    """)
+st.set_page_config(
+    page_title="Child Health Vulnerability Analysis System",
+    layout="wide"
+)
 
 # -----------------------------
 # Data Loading & Cleaning
@@ -83,9 +64,25 @@ menu = st.sidebar.radio(
 # -----------------------------
 if menu == "About this System":
     st.header("Predicting Child Health Vulnerabilities in Malaysia")
+
+    st.subheader("System Overview")
     st.write("""
-    This system applies a **stacking regression model** to predict early childhood
-    mortality rates using socio-economic, infrastructure, and temporal indicators.
+    This advanced Machine Learning platform is engineered to predict Early Childhood Mortality Rates 
+    across Malaysia. By evaluating critical socio-economic indicators which include household income 
+    distribution, poverty absolute levels, and infrastructure accessibility (piped water and sanitation). 
+    The system provides high-precision vulnerability assessments to guide public health interventions.
+    """)
+
+    st.subheader("Technical Architecture: Tuned Stacking Regressor")
+    st.write("""
+    The 'Best Model' implemented here is a **Tuned Stacking Regressor**. This ensemble architecture 
+    combines two powerful base learners:
+    
+    1. **Random Forest Regressor**
+    2. **XGBoost Regressor**
+    
+    A **Linear Regression meta-learner** integrates predictions from both models to generate 
+    a stable and robust final prediction.
     """)
 
 # -----------------------------
@@ -186,7 +183,7 @@ elif menu == "Train & Predict Model":
         st.subheader("2️⃣ Prediction Dashboard")
 
         latest_year = int(df_clean["year"].max())
-        scenario_year = latest_year + 1  # ONLY 2023
+        scenario_year = latest_year + 1  # ONE-YEAR AHEAD ONLY
 
         input_data = []
         cols = st.columns(2)
@@ -221,7 +218,7 @@ elif menu == "Train & Predict Model":
             X_scaled_final = st.session_state.scaler.transform([input_data])
             res = st.session_state.model.predict(X_scaled_final)[0]
 
-            st.success(f"Predicted Child Mortality Rate (2023): {res:.2f}")
+            st.success(f"Predicted Child Mortality Rate ({scenario_year}): {res:.2f}")
 
             # -------------------------
             # Recommendation Section
@@ -245,40 +242,9 @@ elif menu == "Train & Predict Model":
                 st.warning("**Vulnerability Classification:** Moderate")
                 st.write("**Recommended Strategic Action:** Targeted policy support and continued monitoring.")
 
-            st.caption(
-                "Note: The historical trend is descriptive. The predicted value represents a scenario-based regression output, not a time-series forecast"
-            )
-            
             # -------------------------
             # Yearly Trend Visualization
             # -------------------------
             yearly_avg = df_clean.groupby("year")["rate"].mean().reset_index()
 
-            fig, ax = plt.subplots(figsize=(10, 4))
-
-            ax.plot(
-                yearly_avg["year"],
-                yearly_avg["rate"],
-                marker="o",
-                label="Historical Average"
-            )
-
-            ax.plot(
-                [latest_year, prediction_year],
-                [
-                    yearly_avg[yearly_avg["year"] == latest_year]["rate"].values[0],
-                    res
-                ],
-                color="red",
-                linestyle=":",
-                marker="o",
-                label="Scenario-Based Prediction"
-            )
-
-            ax.set_title("Scenario Comparison against Historical Child Mortality Trend")
-            ax.set_xlabel("Year")
-            ax.set_ylabel("Mortality Rate")
-            ax.legend()
-            ax.grid(True)
-
-            st.pyplot(fig)
+            fig, ax = plt.subplots(figsize=(10,
