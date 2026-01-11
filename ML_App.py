@@ -247,4 +247,31 @@ elif menu == "Train & Predict Model":
             # -------------------------
             yearly_avg = df_clean.groupby("year")["rate"].mean().reset_index()
 
-            fig, ax = plt.subplots(figsize=(10,
+            fig, ax = plt.subplots(figsize=(10, 4))
+
+            ax.plot(
+                yearly_avg["year"],
+                yearly_avg["rate"],
+                marker="o",
+                label="Historical Average"
+            )
+
+            ax.plot(
+                [latest_year, scenario_year],
+                [
+                    yearly_avg[yearly_avg["year"] == latest_year]["rate"].values[0],
+                    res
+                ],
+                color="red",
+                linestyle=":",
+                marker="o",
+                label="Scenario-Based Prediction"
+            )
+
+            ax.set_title("Scenario Comparison against Historical Child Mortality Trend")
+            ax.set_xlabel("Year")
+            ax.set_ylabel("Mortality Rate")
+            ax.legend()
+            ax.grid(True)
+
+            st.pyplot(fig)
