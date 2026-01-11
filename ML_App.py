@@ -190,7 +190,7 @@ elif menu == "Train & Predict Model":
                         value=scenario_year,
                         disabled=True
                     )
-                    input_data.append(prediction_year)
+                    input_data.append(scenario_year)
 
                 elif f in st.session_state.encoders:
                     val = st.selectbox(
