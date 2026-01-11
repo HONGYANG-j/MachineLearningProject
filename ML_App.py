@@ -186,8 +186,8 @@ elif menu == "Train & Predict Model":
             with cols[i % 2]:
                 if f == "year":
                     st.number_input(
-                        "Prediction Year",
-                        value=prediction_year,
+                        "Scenario Year",
+                        value=scenario_year,
                         disabled=True
                     )
                     input_data.append(prediction_year)
